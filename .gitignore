@@ -1,0 +1,5 @@
+/seedbox
+/seedbox.json
+*.sock
+__pycache__/
+*.pyc
