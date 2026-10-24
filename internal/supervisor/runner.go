@@ -9,11 +9,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/infer"
-	"github.com/alessio/seedbox/internal/model"
-	"github.com/alessio/seedbox/internal/platform"
-	"github.com/alessio/seedbox/internal/seed"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/infer"
+	"github.com/Alexintosh/SeedTensor/internal/model"
+	"github.com/Alexintosh/SeedTensor/internal/platform"
+	"github.com/Alexintosh/SeedTensor/internal/seed"
 )
 
 // Fetcher ensures a resolved model's files are present under dataDir. The real

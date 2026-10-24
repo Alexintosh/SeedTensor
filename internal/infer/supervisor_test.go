@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/platform"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/platform"
 )
 
 func baseCfg() config.InferConfig {

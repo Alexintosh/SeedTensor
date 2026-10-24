@@ -1,5 +1,5 @@
-/seedbox
-/seedbox.json
+/seedtensor
+/seedtensor.json
 *.sock
 __pycache__/
 *.pyc

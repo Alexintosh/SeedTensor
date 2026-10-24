@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/platform"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/platform"
 )
 
 // Supervisor launches and monitors the TensorFold inference server.
@@ -179,7 +179,7 @@ func defaultLaunch(ctx context.Context, spec LaunchSpec) *exec.Cmd {
 	return cmd
 }
 
-// backendFlag maps seedbox's backend to TensorFold's --backend value. Metal is
+// backendFlag maps seedtensor's backend to TensorFold's --backend value. Metal is
 // called "mlx" in TensorFold's CLI.
 func backendFlag(b platform.Backend) string {
 	switch b {

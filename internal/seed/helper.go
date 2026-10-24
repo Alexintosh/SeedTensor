@@ -2,12 +2,12 @@ package seed
 
 import "context"
 
-// Helper is the BitTorrent engine seedbox drives. The production implementation
+// Helper is the BitTorrent engine seedtensor drives. The production implementation
 // is a separate libtorrent (v2) process spoken to over a local control socket;
 // tests use an in-memory fake. Keeping this an interface means the controller,
 // gate, and ledger are all testable without a real torrent client.
 //
-// The contract is deliberately small: seedbox decides policy; the Helper just
+// The contract is deliberately small: seedtensor decides policy; the Helper just
 // seeds what it's told and reports how much it has uploaded.
 type Helper interface {
 	// AddTorrent registers a torrent for seeding from an already-present,

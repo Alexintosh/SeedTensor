@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/alessio/seedbox/internal/seed"
+	"github.com/Alexintosh/SeedTensor/internal/seed"
 )
 
 // hostSensors returns the host condition sensors for this OS.

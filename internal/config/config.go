@@ -1,4 +1,4 @@
-// Package config defines the on-disk configuration for seedbox and the
+// Package config defines the on-disk configuration for seedtensor and the
 // defaults that apply when fields are omitted.
 //
 // Phase 1 scope: this config describes one model served locally by TensorFold
@@ -75,7 +75,7 @@ const (
 	SeedOff      SeedNetwork = "off"
 )
 
-// Config is the full seedbox configuration.
+// Config is the full seedtensor configuration.
 type Config struct {
 	// Platform for the inference engine. Defaults to auto.
 	Platform Platform `json:"platform"`
@@ -149,7 +149,7 @@ type SeedConfig struct {
 	// before seeding is considered idle-eligible again.
 	IdleGraceAfterGeneration Duration `json:"idle_grace_after_generation"`
 
-	// HelperBinary is the libtorrent helper. Empty means "seedbox-lt-helper"
+	// HelperBinary is the libtorrent helper. Empty means "seedtensor-lt-helper"
 	// on PATH. The helper is a separate process driven over a control socket.
 	HelperBinary string `json:"helper_binary,omitempty"`
 
@@ -164,7 +164,7 @@ type PathsConfig struct {
 	// reads them; the seeder shares them read-only. One copy, no duplication.
 	WeightsDir string `json:"weights_dir"`
 
-	// StateDir holds seedbox runtime state (upload ledger, resume data).
+	// StateDir holds seedtensor runtime state (upload ledger, resume data).
 	StateDir string `json:"state_dir"`
 }
 
@@ -172,9 +172,9 @@ type PathsConfig struct {
 func Default() Config {
 	cacheDir, _ := os.UserCacheDir()
 	if cacheDir == "" {
-		cacheDir = filepath.Join(os.TempDir(), "seedbox-cache")
+		cacheDir = filepath.Join(os.TempDir(), "seedtensor-cache")
 	}
-	root := filepath.Join(cacheDir, "seedbox")
+	root := filepath.Join(cacheDir, "seedtensor")
 	return Config{
 		Platform: PlatformAuto,
 		Model: ModelConfig{
@@ -220,7 +220,7 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
-// Save writes cfg to path as indented JSON (used by `seedbox init`).
+// Save writes cfg to path as indented JSON (used by `seedtensor init`).
 func Save(path string, cfg Config) error {
 	raw, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {

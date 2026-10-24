@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/model"
-	"github.com/alessio/seedbox/internal/platform"
-	"github.com/alessio/seedbox/internal/seed"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/model"
+	"github.com/Alexintosh/SeedTensor/internal/platform"
+	"github.com/Alexintosh/SeedTensor/internal/seed"
 )
 
 // fakeEngine is an InferEngine backed by an httptest server for health checks.

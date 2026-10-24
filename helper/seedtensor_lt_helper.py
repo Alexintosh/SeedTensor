@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""seedbox libtorrent helper.
+"""seedtensor libtorrent helper.
 
-A thin BitTorrent v2 seeding process driven by the seedbox Go supervisor over a
+A thin BitTorrent v2 seeding process driven by the seedtensor Go supervisor over a
 unix-domain control socket. It speaks the line-delimited JSON protocol defined
 in internal/seed/socket_helper.go:
 
@@ -16,7 +16,7 @@ in internal/seed/socket_helper.go:
 Design rules this helper must honor:
 
   * SEED IN PLACE. Add the torrent against the already-present, verified files
-    in data_dir. Never re-download or overwrite them: seedbox has already
+    in data_dir. Never re-download or overwrite them: seedtensor has already
     checked every byte against the model's checksum record, and that directory
     is the same one the inference engine reads.
   * NO FETCH. Downloading is disabled; this process only uploads.
@@ -42,7 +42,7 @@ try:
     import libtorrent as lt
 except ImportError:
     sys.stderr.write(
-        "seedbox-lt-helper: the 'libtorrent' module is not installed.\n"
+        "seedtensor-lt-helper: the 'libtorrent' module is not installed.\n"
         "Install python3-libtorrent (apt/brew) or `pip install libtorrent`.\n"
     )
     sys.exit(2)
@@ -65,7 +65,7 @@ class Seeder:
             return
         settings = {
             # Identify politely; keep defaults otherwise.
-            "user_agent": "seedbox-lt-helper/0.1 libtorrent/%s" % lt.version,
+            "user_agent": "seedtensor-lt-helper/0.1 libtorrent/%s" % lt.version,
             # We are a pure seed; do not announce as a downloader.
             "announce_to_all_trackers": True,
             "announce_to_all_tiers": True,
@@ -79,8 +79,8 @@ class Seeder:
             # Requires an I2P SAM bridge (i2pd/i2p) on localhost:7656 and a
             # libtorrent build with I2P support. Clearnet discovery is off so
             # the real IP is never announced.
-            settings["i2p_hostname"] = os.environ.get("SEEDBOX_I2P_HOST", "127.0.0.1")
-            settings["i2p_port"] = int(os.environ.get("SEEDBOX_I2P_PORT", "7656"))
+            settings["i2p_hostname"] = os.environ.get("SEEDTENSOR_I2P_HOST", "127.0.0.1")
+            settings["i2p_port"] = int(os.environ.get("SEEDTENSOR_I2P_PORT", "7656"))
             settings["enable_dht"] = False
             settings["enable_lsd"] = False
             settings["enable_upnp"] = False
@@ -149,7 +149,7 @@ def serve(sock_path: str):
     srv.bind(sock_path)
     os.chmod(sock_path, 0o600)
     srv.listen(1)
-    sys.stderr.write("seedbox-lt-helper: listening on %s\n" % sock_path)
+    sys.stderr.write("seedtensor-lt-helper: listening on %s\n" % sock_path)
 
     try:
         while True:
@@ -206,7 +206,7 @@ def _respond(f, obj):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="seedbox libtorrent helper")
+    ap = argparse.ArgumentParser(description="seedtensor libtorrent helper")
     ap.add_argument("--socket", required=True, help="unix socket path to listen on")
     args = ap.parse_args()
     serve(args.socket)

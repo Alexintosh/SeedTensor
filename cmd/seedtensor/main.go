@@ -1,11 +1,11 @@
-// Command seedbox runs Phase 1: a local TensorFold inference engine that seeds
+// Command seedtensor runs Phase 1: a local TensorFold inference engine that seeds
 // its own verified model weights over BitTorrent while idle.
 //
 // Subcommands:
 //
-//	seedbox init   [-config path] [-model id]   write a starter config
-//	seedbox verify [-config path]               verify weights against the record
-//	seedbox run    [-config path]               resolve, verify, serve, and seed
+//	seedtensor init   [-config path] [-model id]   write a starter config
+//	seedtensor verify [-config path]               verify weights against the record
+//	seedtensor run    [-config path]               resolve, verify, serve, and seed
 //
 // Phase 2 (embedding the security harness) is deliberately not here.
 package main
@@ -19,9 +19,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/model"
-	"github.com/alessio/seedbox/internal/supervisor"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/model"
+	"github.com/Alexintosh/SeedTensor/internal/supervisor"
 )
 
 func main() {
@@ -48,20 +48,20 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `seedbox — local inference + idle model seeding (Phase 1)
+	fmt.Fprint(os.Stderr, `seedtensor — local inference + idle model seeding (Phase 1)
 
 usage:
-  seedbox init   [-config path] [-model id]   write a starter config file
-  seedbox verify [-config path]               verify weights against the checksum record
-  seedbox run    [-config path]               resolve, verify, serve inference, and seed
+  seedtensor init   [-config path] [-model id]   write a starter config file
+  seedtensor verify [-config path]               verify weights against the checksum record
+  seedtensor run    [-config path]               resolve, verify, serve inference, and seed
 
-flags default: -config ./seedbox.json
+flags default: -config ./seedtensor.json
 `)
 }
 
 func cmdInit(args []string) int {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
-	path := fs.String("config", "seedbox.json", "config file path to write")
+	path := fs.String("config", "seedtensor.json", "config file path to write")
 	modelID := fs.String("model", "", "model id (e.g. TensorFold/Qwen3.8-27B-oQ4)")
 	fs.Parse(args)
 
@@ -79,13 +79,13 @@ func cmdInit(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	fmt.Printf("wrote %s (edit model.id and seed settings, then `seedbox run`)\n", *path)
+	fmt.Printf("wrote %s (edit model.id and seed settings, then `seedtensor run`)\n", *path)
 	return 0
 }
 
 func cmdVerify(args []string) int {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
-	path := fs.String("config", "seedbox.json", "config file path")
+	path := fs.String("config", "seedtensor.json", "config file path")
 	fs.Parse(args)
 
 	cfg, err := config.Load(*path)
@@ -119,7 +119,7 @@ func cmdVerify(args []string) int {
 
 func cmdRun(args []string) int {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	path := fs.String("config", "seedbox.json", "config file path")
+	path := fs.String("config", "seedtensor.json", "config file path")
 	fs.Parse(args)
 
 	cfg, err := config.Load(*path)

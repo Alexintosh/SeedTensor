@@ -3,7 +3,7 @@ package model
 import (
 	"fmt"
 
-	"github.com/alessio/seedbox/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/config"
 )
 
 // NewResolver builds the Resolver named by the model config.

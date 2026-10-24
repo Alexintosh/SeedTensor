@@ -1,7 +1,7 @@
-# seedbox
+# seedtensor
 
 Local AI inference that seeds its own model. A machine running a model locally
-already holds the weights on disk; seedbox puts that otherwise-idle copy to work
+already holds the weights on disk; seedtensor puts that otherwise-idle copy to work
 keeping the model alive for everyone else, over BitTorrent, while the inference
 engine is idle.
 
@@ -18,7 +18,7 @@ endpoint. Deliberately out of scope here.
 - **Nothing you send to the model leaves the machine.** On Linux the inference
   process runs in a network namespace with only loopback, so it physically
   cannot reach the network. On macOS this cannot be enforced per-process;
-  seedbox says so plainly and, if you set `no_network: true`, refuses to start
+  seedtensor says so plainly and, if you set `no_network: true`, refuses to start
   rather than pretend. (See [ARCHITECTURE.md](ARCHITECTURE.md).)
 - **You only ever serve or seed verified bytes.** Every file is hashed against
   the model's published SHA-256 record before the engine loads it. Any missing
@@ -35,7 +35,7 @@ Requires Go 1.24+ to build the orchestrator, and Python 3.9+ with the
 
 ```sh
 # Build the orchestrator
-go build -o seedbox ./cmd/seedbox
+go build -o seedtensor ./cmd/seedtensor
 
 # The seeding helper is a separate process (libtorrent is C++/Python, not Go).
 # Install its one dependency:
@@ -51,17 +51,17 @@ make sure `tensorfold` is on your `PATH` (or set `infer.binary` in the config).
 
 ```sh
 # 1. Write a starter config
-./seedbox init -model TensorFold/Qwen3.8-27B-oQ4
+./seedtensor init -model TensorFold/Qwen3.8-27B-oQ4
 
 # 2. Fetch the weights. In Phase 1 this is done with the torrent helper or by
 #    placing an existing copy at paths.weights_dir. Then verify them:
-./seedbox verify
+./seedtensor verify
 
 # 3. Start the seeding helper (in its own terminal or a service):
-python3 helper/seedbox_lt_helper.py --socket ~/.cache/seedbox/state/helper.sock
+python3 helper/seedtensor_lt_helper.py --socket ~/.cache/seedtensor/state/helper.sock
 
 # 4. Run: resolve -> verify -> serve inference -> seed while idle
-./seedbox run
+./seedtensor run
 ```
 
 The inference API is then at `http://127.0.0.1:8080/v1` (OpenAI-compatible).
@@ -76,7 +76,7 @@ The inference API is then at `http://127.0.0.1:8080/v1` (OpenAI-compatible).
 
 ## Model compatibility
 
-seedbox serves whatever TensorFold can load (its packaged `oQ*`/MLX quants of
+seedtensor serves whatever TensorFold can load (its packaged `oQ*`/MLX quants of
 Qwen, GLM, Ling, and so on) and seeds whatever is listed on
 [PirateFace](https://pirateface.co). The usable set is the intersection; see
 [ARCHITECTURE.md](ARCHITECTURE.md) for how to widen it by submitting
@@ -92,7 +92,7 @@ CI sandbox lacks).
 ## Layout
 
 ```
-cmd/seedbox/            CLI: init, verify, run
+cmd/seedtensor/            CLI: init, verify, run
 internal/config/        JSON config, defaults, validation (zero deps)
 internal/model/         resolve (PirateFace/fixture), fail-closed verify
 internal/infer/         TensorFold supervisor, idle/activity tracking

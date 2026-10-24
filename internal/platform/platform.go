@@ -1,4 +1,4 @@
-// Package platform resolves runtime facts seedbox needs: which inference
+// Package platform resolves runtime facts seedtensor needs: which inference
 // backend to serve, and how (or whether) the inference process can be denied
 // network access on this OS.
 package platform
@@ -6,7 +6,7 @@ package platform
 import (
 	"runtime"
 
-	"github.com/alessio/seedbox/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/config"
 )
 
 // Backend is the resolved inference backend.
@@ -45,7 +45,7 @@ func (e *UnsupportedError) Error() string { return "unsupported platform: " + e.
 // network access on this host, and how.
 type NetworkIsolation struct {
 	// Enforceable is true when the OS gives us a way to deny the child
-	// process network access that seedbox can apply itself.
+	// process network access that seedtensor can apply itself.
 	Enforceable bool
 	// Mechanism names the method (e.g. "linux-netns", "none").
 	Mechanism string
@@ -59,7 +59,7 @@ type NetworkIsolation struct {
 // On Linux we can run the child in a new, empty network namespace, which
 // removes every interface except loopback: the process physically cannot reach
 // the network. On macOS there is no unprivileged per-process network namespace,
-// so seedbox cannot enforce this itself; the honest answer is that the operator
+// so seedtensor cannot enforce this itself; the honest answer is that the operator
 // must rely on an outer sandbox (or accept the gap), and we say so rather than
 // pretend.
 func DetectNetworkIsolation() NetworkIsolation {
@@ -74,7 +74,7 @@ func DetectNetworkIsolation() NetworkIsolation {
 		return NetworkIsolation{
 			Enforceable: false,
 			Mechanism:   "none",
-			Detail:      "macOS has no unprivileged per-process network namespace; seedbox cannot enforce no-network on the inference process itself. Run seedbox under an outer sandbox, or accept that TensorFold could in principle open a socket.",
+			Detail:      "macOS has no unprivileged per-process network namespace; seedtensor cannot enforce no-network on the inference process itself. Run seedtensor under an outer sandbox, or accept that TensorFold could in principle open a socket.",
 		}
 	default:
 		return NetworkIsolation{

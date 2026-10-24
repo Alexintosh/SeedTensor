@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/alessio/seedbox/internal/model"
+	"github.com/Alexintosh/SeedTensor/internal/model"
 )
 
 // FixtureFetcher copies a model's files from a local source directory into the

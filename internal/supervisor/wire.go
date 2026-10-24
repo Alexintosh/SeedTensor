@@ -4,11 +4,11 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/alessio/seedbox/internal/config"
-	"github.com/alessio/seedbox/internal/infer"
-	"github.com/alessio/seedbox/internal/model"
-	"github.com/alessio/seedbox/internal/platform"
-	"github.com/alessio/seedbox/internal/seed"
+	"github.com/Alexintosh/SeedTensor/internal/config"
+	"github.com/Alexintosh/SeedTensor/internal/infer"
+	"github.com/Alexintosh/SeedTensor/internal/model"
+	"github.com/Alexintosh/SeedTensor/internal/platform"
+	"github.com/Alexintosh/SeedTensor/internal/seed"
 )
 
 // Production builds the Deps used in a real run: a resolver from config, the
