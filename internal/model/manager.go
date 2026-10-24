@@ -10,7 +10,7 @@ import (
 func NewResolver(mc config.ModelConfig) (Resolver, error) {
 	switch mc.Source {
 	case "pirateface":
-		return PirateFaceResolver{Base: mc.PirateFaceBase}, nil
+		return PirateFaceResolver{Base: mc.PirateFaceBase, HFEndpoint: mc.HFEndpoint, Revision: mc.Revision}, nil
 	case "fixture":
 		return FixtureResolver{ManifestPath: mc.FixtureManifest}, nil
 	default:

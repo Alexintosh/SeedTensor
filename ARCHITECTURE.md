@@ -21,11 +21,40 @@
 ## Trust model
 
 The swarm is untrusted. seedtensor never trusts bytes because a peer sent them. It
-trusts them only when every file matches a SHA-256 from the model's published
-record (`model.Resolved`), and that record is pinned to a named origin (a
-PirateFace listing or a local fixture). `model.Verify` fails closed on any
-discrepancy, and `supervisor.Runner` will not start inference or seeding if
-verification fails.
+trusts them only when every file matches Hugging Face's fingerprint for that
+file at a pinned revision, the same check PirateFace's official client does
+(`pirateface/huggingface.py`): SHA-256 for Git LFS files, the git blob SHA-1
+(`sha1("blob <size>\0" + content)`) for every other file. `model.Verify` fails
+closed on any discrepancy, and `supervisor.Runner` will not start inference or
+seeding if verification fails.
+
+## Where the record comes from
+
+`model.PirateFaceResolver` makes two calls, each matching an official client:
+
+| Data | Request | Source of the format |
+| --- | --- | --- |
+| Magnet | `GET pirateface.co/api/torrents?repo=<id>` → `{"magnet": ...}`, 404 = not listed | `pirateface` package, `client/api.py` |
+| File fingerprints | `GET huggingface.co/api/models/<id>/tree/<rev>?recursive=true`, paginated by `Link: rel="next"`; entries `type`, `path`, `size`, `oid`, `lfs.oid` | `huggingface_hub`, `list_repo_tree` / `RepoFile` |
+
+No other PirateFace field is used, because none is documented. Set
+`model.revision` to the commit shown on the model's PirateFace page: the torrent
+was built from that revision. With the default (`main`), an upstream change
+makes verification fail closed rather than pass the wrong bytes.
+
+Facts from PirateFace's client that shape the seeder:
+
+- A magnet alone carries no file list; the client needs a live peer to send
+  it, then caches the `.torrent`. A lone seeder holding only a magnet cannot
+  start. See the end-to-end test plan.
+- Torrents are keyed by v1 infohash and may contain pad files (hybrid
+  v1/v2). seedtensor does not assume v2.
+- Files sit under the torrent's root folder: `<save_path>/<torrent name>/<repo
+  path>`. The weights directory's name must equal the torrent name for
+  in-place seeding.
+- It is unconfirmed whether a torrent contains every file in the Hugging Face
+  tree (e.g. `README.md`, `.gitattributes`). Verification currently requires
+  every tree file; the end-to-end test checks this.
 
 ## Process boundaries
 

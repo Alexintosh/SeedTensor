@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,112 +11,190 @@ import (
 	"time"
 )
 
-// DefaultPirateFaceBase is the public PirateFace base URL.
+// Defaults for the two services the resolver reads.
+const (
+	DefaultPirateFaceBase  = "https://pirateface.co"
+	DefaultHFEndpoint      = "https://huggingface.co"
+	DefaultHFRevision      = "main"
+	maxTreePages           = 100
+	maxResponseBodyBytes   = 64 << 20
+	defaultResolverTimeout = 30 * time.Second
+)
+
+// ErrNotListed means PirateFace has no torrent for the requested repo.
+var ErrNotListed = errors.New("model is not listed on PirateFace")
+
+// PirateFaceResolver builds a model's distribution record from two real
+// sources, each matching an official client's code:
 //
-// NOTE ON STABILITY: as of this writing PirateFace publishes model pages with
-// magnet links and SHA-256 checksum records, runs its own tracker, and lists a
-// planned drop-in API (an HF_ENDPOINT-style endpoint) marked "soon". The exact
-// JSON schema of that API is not yet documented. This resolver therefore codes
-// against an ASSUMED response shape (pfModelResponse below) and keeps all of
-// that assumption in this one file. When the real API lands, adjust
-// pfModelResponse and parsePF to match; nothing else in the codebase needs to
-// change, because everything downstream consumes the neutral Resolved struct.
-const DefaultPirateFaceBase = "https://pirateface.co"
-
-// PirateFaceResolver resolves a model via the PirateFace registry.
+//  1. The magnet comes from PirateFace: GET {base}/api/torrents?repo=<id>,
+//     JSON object, field "magnet"; 404 means not listed. This is exactly what
+//     the official `pirateface` client does (pirateface/client/api.py). No other
+//     field of that response is relied on.
+//
+//  2. The per-file fingerprints come from Hugging Face at a pinned revision:
+//     GET {hf}/api/models/<id>/tree/<url-escaped revision>?recursive=true,
+//     paginated by a `Link: <...>; rel="next"` header. Each entry has `type`
+//     ("file"/"directory"), `path`, `size`, `oid` (git blob sha1) and, for
+//     LFS files, `lfs.oid` (sha256). This matches huggingface_hub's
+//     list_repo_tree / RepoFile parsing. PirateFace's own client verifies
+//     torrent files against these same fingerprints.
+//
+// Pin Revision to the commit shown on the model's PirateFace page: the torrent
+// was built from that revision, so its files hash to that tree. A moving
+// revision like "main" fails verification closed if upstream changes.
 type PirateFaceResolver struct {
-	// Base overrides the registry base URL. Empty uses DefaultPirateFaceBase.
-	Base string
-	// HTTP is the client used for requests. Empty uses a default with a
-	// sane timeout. Injected in tests to serve a canned response.
-	HTTP *http.Client
-}
-
-// pfModelResponse is the ASSUMED PirateFace model-metadata JSON. See the note
-// on DefaultPirateFaceBase. Fields are best-effort guesses at the real schema.
-type pfModelResponse struct {
-	ID       string `json:"id"`
-	Magnet   string `json:"magnet"`
-	InfoHash string `json:"info_hash_v2"`
-	Revision string `json:"revision"`
-	Files    []struct {
-		Path   string `json:"path"`
-		Size   int64  `json:"size"`
-		SHA256 string `json:"sha256"`
-	} `json:"files"`
-}
-
-func (p PirateFaceResolver) base() string {
-	if p.Base != "" {
-		return strings.TrimRight(p.Base, "/")
-	}
-	return DefaultPirateFaceBase
+	Base       string       // PirateFace base URL; empty = DefaultPirateFaceBase
+	HFEndpoint string       // Hugging Face endpoint; empty = DefaultHFEndpoint
+	Revision   string       // HF revision; empty = DefaultHFRevision
+	HTTP       *http.Client // injected in tests
 }
 
 func (p PirateFaceResolver) client() *http.Client {
 	if p.HTTP != nil {
 		return p.HTTP
 	}
-	return &http.Client{Timeout: 30 * time.Second}
+	return &http.Client{Timeout: defaultResolverTimeout}
 }
 
-// endpoint builds the metadata URL for a model id. The id may contain a slash
-// (e.g. "TensorFold/Qwen3.8-27B-oQ4"); it is path-escaped as a single segment.
-func (p PirateFaceResolver) endpoint(id string) string {
-	return fmt.Sprintf("%s/api/v1/model/%s", p.base(), url.PathEscape(id))
+func orDefault(v, d string) string {
+	if v == "" {
+		return d
+	}
+	return strings.TrimRight(v, "/")
 }
 
+// Resolve fetches the magnet and the file fingerprints for repo id.
 func (p PirateFaceResolver) Resolve(id string) (Resolved, error) {
-	ep := p.endpoint(id)
-	req, err := http.NewRequest(http.MethodGet, ep, nil)
+	magnet, magnetURL, err := p.lookupMagnet(id)
 	if err != nil {
-		return Resolved{}, fmt.Errorf("build request: %w", err)
+		return Resolved{}, err
 	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := p.client().Do(req)
+	rev := orDefault(p.Revision, DefaultHFRevision)
+	files, treeURL, err := p.listTree(id, rev)
 	if err != nil {
-		return Resolved{}, fmt.Errorf("pirateface request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return Resolved{}, fmt.Errorf("pirateface returned %s for %s: %s", resp.Status, id, strings.TrimSpace(string(body)))
-	}
-
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
-	if err != nil {
-		return Resolved{}, fmt.Errorf("read pirateface response: %w", err)
-	}
-
-	return parsePF(raw, id, ep)
-}
-
-// parsePF turns the assumed PirateFace JSON into a neutral Resolved record.
-// Split out so tests can exercise it without HTTP.
-func parsePF(raw []byte, id, origin string) (Resolved, error) {
-	var pf pfModelResponse
-	if err := json.Unmarshal(raw, &pf); err != nil {
-		return Resolved{}, fmt.Errorf("parse pirateface JSON: %w", err)
+		return Resolved{}, err
 	}
 	r := Resolved{
-		ID:         id,
-		Magnet:     pf.Magnet,
-		InfoHashV2: pf.InfoHash,
-		Revision:   pf.Revision,
-		Origin:     "pirateface:" + origin,
-	}
-	for _, f := range pf.Files {
-		r.Files = append(r.Files, FileChecksum{
-			Path: f.Path,
-			Size: f.Size,
-			Algo: SHA256,
-			Hex:  strings.ToLower(f.SHA256),
-		})
+		ID:       id,
+		Magnet:   magnet,
+		Files:    files,
+		Revision: rev,
+		Origin:   "magnet:" + magnetURL + " files:" + treeURL,
 	}
 	if err := r.Validate(); err != nil {
-		return Resolved{}, fmt.Errorf("pirateface record for %q did not validate: %w", id, err)
+		return Resolved{}, fmt.Errorf("record for %q did not validate: %w", id, err)
 	}
 	return r, nil
+}
+
+func (p PirateFaceResolver) lookupMagnet(id string) (magnet, endpoint string, err error) {
+	endpoint = orDefault(p.Base, DefaultPirateFaceBase) + "/api/torrents?" + url.Values{"repo": {id}}.Encode()
+	body, status, _, err := p.get(endpoint)
+	if err != nil {
+		return "", endpoint, fmt.Errorf("pirateface lookup: %w", err)
+	}
+	if status == http.StatusNotFound {
+		return "", endpoint, fmt.Errorf("%w: %s", ErrNotListed, id)
+	}
+	if status != http.StatusOK {
+		return "", endpoint, fmt.Errorf("pirateface lookup %s: HTTP %d", id, status)
+	}
+	var entry struct {
+		Magnet string `json:"magnet"`
+	}
+	if err := json.Unmarshal(body, &entry); err != nil {
+		return "", endpoint, fmt.Errorf("pirateface lookup %s: decode: %w", id, err)
+	}
+	if !strings.HasPrefix(entry.Magnet, "magnet:?") {
+		// The official client treats a missing magnet as "unknown", e.g. a
+		// license that must be accepted first.
+		return "", endpoint, fmt.Errorf("pirateface has no usable magnet for %s", id)
+	}
+	return entry.Magnet, endpoint, nil
+}
+
+// hfTreeEntry mirrors the fields huggingface_hub reads from the tree API.
+type hfTreeEntry struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+	OID  string `json:"oid"`
+	LFS  *struct {
+		OID  string `json:"oid"`
+		Size int64  `json:"size"`
+	} `json:"lfs"`
+}
+
+func (p PirateFaceResolver) listTree(id, rev string) ([]FileChecksum, string, error) {
+	hf := orDefault(p.HFEndpoint, DefaultHFEndpoint)
+	// huggingface_hub: f"{endpoint}/api/{repo_type}s/{repo_id}/tree/{quote(revision, safe='')}"
+	first := fmt.Sprintf("%s/api/models/%s/tree/%s?recursive=true", hf, id, url.PathEscape(rev))
+	var files []FileChecksum
+	next := first
+	for page := 0; next != ""; page++ {
+		if page >= maxTreePages {
+			return nil, first, fmt.Errorf("hugging face tree for %s exceeded %d pages", id, maxTreePages)
+		}
+		body, status, hdr, err := p.get(next)
+		if err != nil {
+			return nil, first, fmt.Errorf("hugging face tree: %w", err)
+		}
+		if status != http.StatusOK {
+			return nil, first, fmt.Errorf("hugging face tree %s@%s: HTTP %d", id, rev, status)
+		}
+		var entries []hfTreeEntry
+		if err := json.Unmarshal(body, &entries); err != nil {
+			return nil, first, fmt.Errorf("hugging face tree %s: decode: %w", id, err)
+		}
+		for _, e := range entries {
+			if e.Type != "file" {
+				continue
+			}
+			fc := FileChecksum{Path: e.Path, Size: e.Size}
+			if e.LFS != nil {
+				fc.Algo, fc.Hex, fc.Size = SHA256, strings.ToLower(e.LFS.OID), e.LFS.Size
+			} else {
+				fc.Algo, fc.Hex = GitBlobSHA1, strings.ToLower(e.OID)
+			}
+			files = append(files, fc)
+		}
+		next = nextLink(hdr.Get("Link"))
+	}
+	return files, first, nil
+}
+
+// nextLink extracts the rel="next" URL from a GitHub-style Link header.
+func nextLink(h string) string {
+	for _, part := range strings.Split(h, ",") {
+		seg := strings.Split(part, ";")
+		if len(seg) < 2 {
+			continue
+		}
+		u := strings.TrimSpace(seg[0])
+		if !strings.HasPrefix(u, "<") || !strings.HasSuffix(u, ">") {
+			continue
+		}
+		for _, attr := range seg[1:] {
+			if strings.ReplaceAll(strings.TrimSpace(attr), " ", "") == `rel="next"` {
+				return u[1 : len(u)-1]
+			}
+		}
+	}
+	return ""
+}
+
+func (p PirateFaceResolver) get(u string) ([]byte, int, http.Header, error) {
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
+	return body, resp.StatusCode, resp.Header, err
 }

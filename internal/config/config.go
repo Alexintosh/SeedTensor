@@ -109,6 +109,15 @@ type ModelConfig struct {
 
 	// PirateFaceBase overrides the PirateFace base URL. Empty uses the default.
 	PirateFaceBase string `json:"pirateface_base,omitempty"`
+
+	// Revision pins the Hugging Face commit whose file fingerprints the
+	// weights are verified against. Set it to the revision shown on the
+	// model's PirateFace page (the torrent was built from it). Empty uses
+	// "main", which fails verification closed if upstream has moved.
+	Revision string `json:"revision,omitempty"`
+
+	// HFEndpoint overrides the Hugging Face endpoint used for fingerprints.
+	HFEndpoint string `json:"hf_endpoint,omitempty"`
 }
 
 // InferConfig configures the TensorFold process.

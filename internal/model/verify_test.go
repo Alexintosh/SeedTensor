@@ -143,3 +143,28 @@ func TestVerifyRejectsEmptyRecord(t *testing.T) {
 		t.Fatal("expected error for empty checksum record")
 	}
 }
+
+// Expected ids come from the real git binary (`git hash-object --stdin`), which
+// is the same fingerprint Hugging Face reports as `oid` for non-LFS files.
+func TestVerifyGitBlobSHA1MatchesGit(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "config.json"), []byte(`{"arch":"demo"}`), 0o644)
+	os.WriteFile(filepath.Join(root, "empty.txt"), nil, 0o644)
+	r := Resolved{
+		ID:     "x/y",
+		Magnet: "magnet:?xt=urn:btih:00",
+		Files: []FileChecksum{
+			{Path: "config.json", Size: 15, Algo: GitBlobSHA1, Hex: "e471e3d08de9a07eb931e51bd8f1d6df1ce09e92"},
+			{Path: "empty.txt", Size: 0, Algo: GitBlobSHA1, Hex: "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"},
+		},
+	}
+	res, err := Verify(root, r, nil)
+	if err != nil {
+		t.Fatalf("verify: %v %v", err, res.Problems)
+	}
+	// Flip one byte: must fail.
+	os.WriteFile(filepath.Join(root, "config.json"), []byte(`{"arch":"demX"}`), 0o644)
+	if _, err := Verify(root, r, nil); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("tampered git-blob file passed verification: %v", err)
+	}
+}

@@ -14,13 +14,30 @@ import (
 	"fmt"
 )
 
-// HashAlgo identifies a checksum algorithm. Phase 1 supports SHA-256, which is
-// what PirateFace records against the original Hugging Face files.
+// HashAlgo identifies a checksum algorithm. These are exactly Hugging Face's
+// file fingerprints, which PirateFace's own client checks torrent files against
+// (pirateface/huggingface.py `_matches`):
+//
+//   - SHA256: large files stored in Git LFS (tree entry `lfs.oid`, 64 hex).
+//   - GitBlobSHA1: every other file, the git blob id (tree entry `oid`,
+//     40 hex) = sha1("blob <size>\x00" + content).
 type HashAlgo string
 
 const (
-	SHA256 HashAlgo = "sha256"
+	SHA256      HashAlgo = "sha256"
+	GitBlobSHA1 HashAlgo = "git-blob-sha1"
 )
+
+// hexLen is the expected hex digest length per algorithm.
+func (a HashAlgo) hexLen() int {
+	switch a {
+	case SHA256:
+		return 64
+	case GitBlobSHA1:
+		return 40
+	}
+	return 0
+}
 
 // FileChecksum is the expected hash of one file within a model.
 type FileChecksum struct {
@@ -92,11 +109,12 @@ func (r Resolved) Validate() error {
 			return fmt.Errorf("duplicate file path %q in record", f.Path)
 		}
 		seen[f.Path] = true
-		if f.Algo != SHA256 {
+		n := f.Algo.hexLen()
+		if n == 0 {
 			return fmt.Errorf("file %q uses unsupported hash algo %q", f.Path, f.Algo)
 		}
-		if len(f.Hex) != 64 {
-			return fmt.Errorf("file %q has malformed sha256 %q", f.Path, f.Hex)
+		if len(f.Hex) != n {
+			return fmt.Errorf("file %q has malformed %s %q", f.Path, f.Algo, f.Hex)
 		}
 		if f.Size < 0 {
 			return fmt.Errorf("file %q has negative size", f.Path)

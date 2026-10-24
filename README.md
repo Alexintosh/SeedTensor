@@ -52,6 +52,8 @@ make sure `tensorfold` is on your `PATH` (or set `infer.binary` in the config).
 ```sh
 # 1. Write a starter config
 ./seedtensor init -model TensorFold/Qwen3.8-27B-oQ4
+#    then set "model.revision" in seedtensor.json to the Hugging Face commit
+#    shown on the model's PirateFace page (pirateface.co/<owner>/<model>)
 
 # 2. Fetch the weights. In Phase 1 this is done with the torrent helper or by
 #    placing an existing copy at paths.weights_dir. Then verify them:

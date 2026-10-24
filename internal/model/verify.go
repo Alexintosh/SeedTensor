@@ -1,10 +1,12 @@
 package model
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"os"
@@ -121,7 +123,7 @@ func Verify(root string, r Resolved, progress func(done, total int64)) (VerifyRe
 			continue
 		}
 
-		sum, n, err := hashFile(full, func(delta int64) {
+		sum, n, err := hashFile(full, fc.Algo, fc.Size, func(delta int64) {
 			if progress != nil {
 				progress(done+delta, total)
 			}
@@ -140,7 +142,7 @@ func Verify(root string, r Resolved, progress func(done, total int64)) (VerifyRe
 			res.OK = false
 			res.Problems = append(res.Problems, Problem{
 				Path:   fc.Path,
-				Reason: fmt.Sprintf("sha256 mismatch: have %s, want %s", sum, fc.Hex),
+				Reason: fmt.Sprintf("%s mismatch: have %s, want %s", fc.Algo, sum, fc.Hex),
 			})
 		}
 	}
@@ -151,16 +153,28 @@ func Verify(root string, r Resolved, progress func(done, total int64)) (VerifyRe
 	return res, nil
 }
 
-// hashFile streams a file through SHA-256 without loading it into memory,
-// which matters because model files run to hundreds of gigabytes.
-func hashFile(path string, onRead func(delta int64)) (hexsum string, n int64, err error) {
+// hashFile streams a file through the record's algorithm without loading it
+// into memory, which matters because model files run to hundreds of gigabytes.
+// For GitBlobSHA1 the git object header "blob <size>\x00" is hashed first,
+// matching `git hash-object` and Hugging Face's non-LFS file oid. size is the
+// already-checked file size.
+func hashFile(path string, algo HashAlgo, size int64, onRead func(delta int64)) (hexsum string, n int64, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", 0, err
 	}
 	defer f.Close()
 
-	h := sha256.New()
+	var h hash.Hash
+	switch algo {
+	case SHA256:
+		h = sha256.New()
+	case GitBlobSHA1:
+		h = sha1.New()
+		fmt.Fprintf(h, "blob %d\x00", size)
+	default:
+		return "", 0, fmt.Errorf("unsupported hash algo %q", algo)
+	}
 	buf := make([]byte, 4<<20) // 4 MiB
 	for {
 		r, rerr := f.Read(buf)
