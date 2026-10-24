@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -65,19 +66,21 @@ func (s *Supervisor) Spec() LaunchSpec {
 	if bin == "" {
 		bin = "tensorfold"
 	}
-	// TensorFold serves an OpenAI-compatible API; the model dir is the
-	// verified weights. The exact flag surface is TensorFold's; these are
-	// the documented serve knobs (serve <repo>, --host/--port via listen).
-	args := []string{
-		"serve", s.modelID,
-		"--model-dir", s.modelDir,
-		"--listen", s.cfg.ListenAddr,
+	// Mirrors TensorFold's own launcher (zig/src/server/benchmark_server.zig):
+	//   serve <local checkpoint dir> --host H --port P --name ID --backend B
+	// `serve` accepts a complete local checkpoint directory, so it loads the
+	// verified weights directly and never consults the Hugging Face cache.
+	// Backend values per zig/src/server/cli.zig: auto|mlx|cuda|rocm.
+	host, port, err := net.SplitHostPort(s.cfg.ListenAddr)
+	if err != nil {
+		host, port = "127.0.0.1", "8080"
 	}
-	switch s.backend {
-	case platform.BackendCUDA:
-		args = append(args, "--backend", "cuda")
-	case platform.BackendMetal:
-		args = append(args, "--backend", "metal")
+	args := []string{
+		"serve", s.modelDir,
+		"--host", host,
+		"--port", port,
+		"--name", s.modelID,
+		"--backend", backendFlag(s.backend),
 	}
 	return LaunchSpec{
 		Binary:     bin,
@@ -174,6 +177,19 @@ func defaultLaunch(ctx context.Context, spec LaunchSpec) *exec.Cmd {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd
+}
+
+// backendFlag maps seedbox's backend to TensorFold's --backend value. Metal is
+// called "mlx" in TensorFold's CLI.
+func backendFlag(b platform.Backend) string {
+	switch b {
+	case platform.BackendMetal:
+		return "mlx"
+	case platform.BackendCUDA:
+		return "cuda"
+	default:
+		return "auto"
+	}
 }
 
 // shellQuote joins args into a single-quoted shell string.
